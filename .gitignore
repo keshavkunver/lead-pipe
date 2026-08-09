@@ -1,23 +1,22 @@
-# leads.db is accumulated training data — never commit it
+# leftovers from the pre-strip pipeline — local only, never commit
 leads.db
 leads.db-journal
 leads.db-wal
 leads.db-shm
-
-.env
-weekly_brief.txt
 backup/
-
-# private business config/strategy — stays local, examples are tracked
+.env
 markets.json
 TODO.md
 logs/
-venv/
+weekly_brief.txt
 
+venv/
 __pycache__/
 *.pyc
 .pytest_cache/
+*.csv
 
-# local session history / OS noise — never leaves this machine
+# local session history / OS noise
 .remember/
 .DS_Store
+*.log

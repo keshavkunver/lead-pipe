@@ -1,11 +1,1 @@
 requests
-beautifulsoup4
-scikit-learn
-numpy
-dnspython
-anthropic
-flask
-python-dotenv
-
-# dev only — running tests/
-pytest
