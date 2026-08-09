@@ -39,8 +39,12 @@ them works on a fresh install.
 
 ```sh
 python3 -m venv venv && venv/bin/pip install -r requirements.txt
-cp .env.example .env    # fill in keys
+cp .env.example .env                    # fill in keys + LEADPIPE_SERVICE
+cp markets.json.example markets.json    # set your real niche/geo targets
 ```
+
+`markets.json` and `.env` are gitignored on purpose: what you sell and
+where you hunt is private config, not code.
 
 ## Tests
 

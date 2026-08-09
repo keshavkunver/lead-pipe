@@ -16,6 +16,10 @@ import re
 
 MODEL = "claude-sonnet-4-6"
 
+# What you sell, injected into every prompt. Set in .env so the repo stays
+# generic; the default keeps local dev working.
+SERVICE = os.environ.get("LEADPIPE_SERVICE", "web design")
+
 
 def _client():
     import anthropic
@@ -51,7 +55,7 @@ TRIAGE_CATEGORIES = [
     "hostile",         # complaint or spam accusation -> suppress + investigate
 ]
 
-TRIAGE_SYSTEM = f"""You classify replies to cold outreach emails offering web design services.
+TRIAGE_SYSTEM = f"""You classify replies to cold outreach emails offering {SERVICE} services.
 
 Return ONLY a JSON object, no prose, no markdown fences:
 {{"category": one of {TRIAGE_CATEGORIES},
@@ -93,8 +97,8 @@ def classify_reply(subject, body):
 
 # ----------------------------------------------------------- 2. OPENER DRAFT
 
-OPENER_SYSTEM = """You write the opening line of a cold email from a web designer
-to a local business owner.
+OPENER_SYSTEM = f"""You write the opening line of a cold email from a {SERVICE}
+provider to a local business owner.
 
 Constraints:
 - ONE or TWO sentences. Under 30 words.
@@ -118,8 +122,8 @@ def draft_opener(name, niche, findings):
 
 # ------------------------------------------------------------- 3. THE REPORT
 
-REPORT_SYSTEM = """You write a short weekly operations brief for the owner of a
-one-person web design business who runs an automated lead pipeline.
+REPORT_SYSTEM = f"""You write a short weekly operations brief for the owner of a
+one-person {SERVICE} business who runs an automated lead pipeline.
 
 Structure:
 1. One-line headline: what actually matters this week.

@@ -14,7 +14,7 @@ SETUP
   In Google Cloud console, enable: "Places API (New)" and "PageSpeed Insights API"
 
 USAGE
-  python lead_finder.py "HVAC contractor" "Round Rock, TX"
+  python lead_finder.py "HVAC contractor" "Springfield, IL"
   python lead_finder.py "dentist" "Boise, ID" --pagespeed --out boise_dentists.csv
 
 COST NOTE
@@ -231,7 +231,7 @@ def score(biz, a, ps=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("niche", help='e.g. "HVAC contractor"')
-    ap.add_argument("location", help='e.g. "Round Rock, TX"')
+    ap.add_argument("location", help='e.g. "Springfield, IL"')
     ap.add_argument("--out", default="leads.csv")
     ap.add_argument("--pagespeed", action="store_true", help="slower, adds Lighthouse scores")
     ap.add_argument("--workers", type=int, default=8)

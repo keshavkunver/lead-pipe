@@ -27,6 +27,16 @@ Claude owns the scaffolding around them: `webhook.py`, `sender.py`,
   Out-of-office = `auto_reply`. Fixtures in `tests/triage_fixtures.json`
   must use exactly these labels (smoke test enforces it).
 
+## Private config (gitignored — never commit, never hardcode)
+
+- `markets.json` — live niche/geo targets (loaded by `job_discover`;
+  tracked example: `markets.json.example`).
+- `LEADPIPE_SERVICE` in `.env` — what the user sells, injected into the
+  claude_tasks prompts.
+- `TODO.md` — business strategy notes, local only.
+- Keep it this way: business specifics go in untracked config, the repo
+  stays generic.
+
 ## Data rules
 
 - `leads.db` is accumulated training data — **never commit it**, never

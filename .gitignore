@@ -7,6 +7,10 @@ leads.db-shm
 .env
 weekly_brief.txt
 backup/
+
+# private business config/strategy — stays local, examples are tracked
+markets.json
+TODO.md
 logs/
 venv/
 

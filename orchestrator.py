@@ -90,8 +90,13 @@ def job_discover(conn):
     fit_msg = scorer.fit(conn)
 
     # Let the bandit choose where to look. This is the compounding part.
-    markets = [("HVAC contractor", "Round Rock TX"), ("dentist", "Austin TX"),
-               ("roofing contractor", "Georgetown TX"), ("plumber", "Cedar Park TX")]
+    # Live niche/geo targets are private config, not code: markets.json is
+    # gitignored — copy markets.json.example and edit.
+    try:
+        markets = [tuple(m) for m in json.load(open("markets.json"))]
+    except FileNotFoundError:
+        raise RuntimeError("markets.json missing — copy markets.json.example "
+                           "and set your real niche/geo targets") from None
     niche, geo = lb.MarketBandit(conn).next_market(markets)
 
     gate = lb.QualityGate(conn)
