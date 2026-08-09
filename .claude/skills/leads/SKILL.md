@@ -44,9 +44,10 @@ local. Going through a temp file matters: a plain `>` redirect leaves a
 misleading 0-byte CSV behind if the script fails.
 
 Overpass is a shared volunteer-run service: runs take a few seconds
-normally, but 504 Gateway Timeouts are routine under load. On a 5xx
-error, wait ~20 seconds and retry, up to 3 attempts, before reporting
-failure. The lead count is printed to stderr.
+normally, longer under load. The script already retries across three
+public mirrors on its own; if it still exits saying all mirrors failed,
+wait a minute and rerun once before reporting failure. The lead count
+is printed to stderr.
 
 ## Report
 
