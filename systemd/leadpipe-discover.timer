@@ -1,0 +1,11 @@
+[Unit]
+Description=leadpipe discover — weekday mornings
+
+[Timer]
+OnCalendar=Mon..Fri 06:00
+# A machine asleep at 06:00 runs the job on next boot instead of skipping.
+Persistent=true
+Unit=leadpipe@discover.service
+
+[Install]
+WantedBy=timers.target

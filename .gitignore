@@ -1,0 +1,19 @@
+# leads.db is accumulated training data — never commit it
+leads.db
+leads.db-journal
+leads.db-wal
+leads.db-shm
+
+.env
+weekly_brief.txt
+backup/
+logs/
+venv/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# local session history / OS noise — never leaves this machine
+.remember/
+.DS_Store

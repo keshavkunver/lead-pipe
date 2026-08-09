@@ -1,0 +1,17 @@
+# The inbound reply receiver has to run continuously, unlike the timer
+# jobs — replies arrive whenever the provider forwards them.
+[Unit]
+Description=leadpipe inbound reply webhook
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=leadpipe
+WorkingDirectory=/opt/leadpipe
+EnvironmentFile=/opt/leadpipe/.env
+ExecStart=/opt/leadpipe/venv/bin/python webhook.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

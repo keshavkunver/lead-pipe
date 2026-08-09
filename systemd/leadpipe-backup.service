@@ -1,0 +1,8 @@
+[Unit]
+Description=leadpipe nightly db backup
+
+[Service]
+Type=oneshot
+User=leadpipe
+WorkingDirectory=/opt/leadpipe
+ExecStart=/opt/leadpipe/backup.sh
