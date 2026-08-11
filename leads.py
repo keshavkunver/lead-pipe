@@ -3,7 +3,11 @@
 
 Usage:  python leads.py "Boise" hvac
         python leads.py "Springfield, Missouri" restaurant
+        python leads.py "Boise" hvac --fresh      (skip the response cache)
 Output: CSV on stdout — name, phone, address, osm_id (phone-having rows first)
+
+Raw Overpass responses are cached in .leads_cache/ for 24 hours, so
+repeating a query is instant and costs the public servers nothing.
 
 Local businesses only: anything tagged as a brand/chain is skipped, since
 franchises have a corporate website even when the map element lacks one.
@@ -11,6 +15,9 @@ A social-media page (contact:facebook etc.) does not count as a website.
 """
 
 import csv
+import hashlib
+import json
+import pathlib
 import queue
 import sys
 import threading
@@ -25,6 +32,12 @@ ENDPOINTS = [
     "https://overpass.private.coffee/api/interpreter",
 ]
 USER_AGENT = "leads.py (https://github.com/keshavkunver/lead-pipe)"
+
+# One session so hedges and follow-up queries reuse TLS connections.
+SESSION = requests.Session()
+
+CACHE_DIR = pathlib.Path(__file__).with_name(".leads_cache")
+CACHE_TTL = 24 * 3600  # the mirrors themselves lag OSM by hours anyway
 
 # Each category can match several OSM tagging conventions; all selectors go
 # into one query. Trade businesses especially get tagged inconsistently.
@@ -41,14 +54,16 @@ CATEGORIES = {
 }
 
 # How long to give a mirror before racing the query on the next one too.
-HEDGE_DELAY = 15.0
+# Healthy mirrors answer in 2-4s; much lower than this and we'd be
+# routinely sending duplicate queries to free servers.
+HEDGE_DELAY = 10.0
 
 _last_request = 0.0
 
 
 def _post(url, query, results):
     try:
-        r = requests.post(
+        r = SESSION.post(
             url,
             data={"data": query},
             headers={"User-Agent": USER_AGENT},
@@ -62,10 +77,12 @@ def _post(url, query, results):
         results.put((url, None, e))
 
 
-def overpass(query):
-    """POST one Overpass query, hedging across the public mirrors.
+def overpass(query, fresh=False):
+    """Answer one Overpass query, from cache when possible.
 
-    Queue time on the free instances varies from ~2s to minutes, so
+    Successful responses are cached on disk for CACHE_TTL; `fresh`
+    forces a refetch. On the network path, hedge across the public
+    mirrors: queue time on the free instances varies from ~2s to minutes, so
     instead of waiting out a full timeout per mirror in sequence, start
     on the first mirror and launch the same query on the next one after
     HEDGE_DELAY (or immediately once a mirror fails), taking whichever
@@ -75,6 +92,16 @@ def overpass(query):
     before giving up — mirrors are often healthy again within a minute.
     """
     global _last_request
+    cached = CACHE_DIR / (hashlib.sha256(query.encode()).hexdigest()[:16] + ".json")
+    if not fresh:
+        try:
+            age_h = (time.time() - cached.stat().st_mtime) / 3600
+            if age_h * 3600 < CACHE_TTL:
+                print(f"note: using {age_h:.1f}h-old cached response "
+                      "(pass --fresh to refetch)", file=sys.stderr)
+                return json.loads(cached.read_text())
+        except (OSError, ValueError):
+            pass  # no cache entry, or an unreadable one — fetch normally
     last_error = None
     for attempt in range(2):
         if attempt:
@@ -109,6 +136,8 @@ def overpass(query):
             if err is None:
                 ENDPOINTS.remove(url)
                 ENDPOINTS.insert(0, url)
+                CACHE_DIR.mkdir(exist_ok=True)
+                cached.write_text(json.dumps(elements))
                 return elements
             last_error = err
             print(f"note: {url.split('/')[2]} failed", file=sys.stderr)
@@ -117,7 +146,7 @@ def overpass(query):
              "The servers are busy — try again in a minute or two.")
 
 
-def fetch(city, selectors):
+def fetch(city, selectors, fresh=False):
     # "Springfield, Missouri" scopes the search to that state's Springfield;
     # a bare name matches every administrative area called that, worldwide.
     state = None
@@ -143,9 +172,11 @@ def fetch(city, selectors):
             f'[out:json][timeout:60];\n'
             f'{area}'
             f'( {union});\n'
-            f'out center tags;'
+            # qt = quadtile (storage) order: skips the server-side sort
+            # by object id, and we re-sort by phone/name anyway.
+            f'out center tags qt;'
         )
-        elements = overpass(query)
+        elements = overpass(query, fresh)
         if elements:
             return elements
     return []
@@ -160,14 +191,18 @@ def address(tags):
 
 
 def main():
-    if len(sys.argv) != 3 or sys.argv[2] not in CATEGORIES:
+    args = sys.argv[1:]
+    fresh = "--fresh" in args
+    if fresh:
+        args.remove("--fresh")
+    if len(args) != 2 or args[1] not in CATEGORIES:
         cats = ", ".join(CATEGORIES)
-        sys.exit(f'usage: python leads.py "<city>[, <state>]" <category>\n'
-                 f'categories: {cats}')
-    city, category = sys.argv[1], sys.argv[2]
+        sys.exit(f'usage: python leads.py "<city>[, <state>]" <category>'
+                 f' [--fresh]\ncategories: {cats}')
+    city, category = args
 
     leads = []
-    for el in fetch(city, CATEGORIES[category]):
+    for el in fetch(city, CATEGORIES[category], fresh):
         tags = el.get("tags", {})
         # Chains and franchises have a corporate website even when the
         # element carries no website tag — they're never leads.

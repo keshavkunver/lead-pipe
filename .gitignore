@@ -10,6 +10,9 @@ TODO.md
 logs/
 weekly_brief.txt
 
+# leads.py's Overpass response cache (24h TTL, --fresh bypasses)
+.leads_cache/
+
 venv/
 __pycache__/
 *.pyc
