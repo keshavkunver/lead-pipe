@@ -11,7 +11,9 @@ A social-media page (contact:facebook etc.) does not count as a website.
 """
 
 import csv
+import queue
 import sys
+import threading
 import time
 
 import requests
@@ -38,16 +40,39 @@ CATEGORIES = {
     "restaurant": ['["amenity"="restaurant"]'],
 }
 
+# How long to give a mirror before racing the query on the next one too.
+HEDGE_DELAY = 15.0
+
 _last_request = 0.0
 
 
-def overpass(query):
-    """POST one Overpass query, at most one request per second.
+def _post(url, query, results):
+    try:
+        r = requests.post(
+            url,
+            data={"data": query},
+            headers={"User-Agent": USER_AGENT},
+            # The server self-limits at 60s ([timeout:60]); no point
+            # waiting much longer than that for a hung connection.
+            timeout=70,
+        )
+        r.raise_for_status()
+        results.put((url, r.json()["elements"], None))
+    except (requests.RequestException, ValueError, KeyError) as e:
+        results.put((url, None, e))
 
-    On failure (timeout, 5xx), waits briefly and falls through to the next
-    mirror instead of crashing. If every mirror fails, waits out the load
-    spike and makes one more pass before giving up — mirrors are often
-    healthy again within a minute.
+
+def overpass(query):
+    """POST one Overpass query, hedging across the public mirrors.
+
+    Queue time on the free instances varies from ~2s to minutes, so
+    instead of waiting out a full timeout per mirror in sequence, start
+    on the first mirror and launch the same query on the next one after
+    HEDGE_DELAY (or immediately once a mirror fails), taking whichever
+    answers first. The winning mirror moves to the front of the list for
+    the rest of the run. Launches stay throttled to one per second. If
+    every mirror fails, waits out the load spike and makes one more pass
+    before giving up — mirrors are often healthy again within a minute.
     """
     global _last_request
     last_error = None
@@ -56,25 +81,38 @@ def overpass(query):
             print("note: all mirrors failed, waiting 30s and retrying once",
                   file=sys.stderr)
             time.sleep(30)
-        for url in ENDPOINTS:
-            wait = _last_request + 1.0 - time.monotonic()
-            if wait > 0:
-                time.sleep(wait)
-            _last_request = time.monotonic()
+        results = queue.Queue()
+        started = pending = 0
+        next_start = time.monotonic()
+        while started < len(ENDPOINTS) or pending:
+            now = time.monotonic()
+            if started < len(ENDPOINTS) and now >= next_start:
+                wait = _last_request + 1.0 - now
+                if wait > 0:
+                    time.sleep(wait)
+                _last_request = time.monotonic()
+                threading.Thread(
+                    target=_post, args=(ENDPOINTS[started], query, results),
+                    daemon=True,
+                ).start()
+                started += 1
+                pending += 1
+                next_start = time.monotonic() + HEDGE_DELAY
+                continue
             try:
-                r = requests.post(
-                    url,
-                    data={"data": query},
-                    headers={"User-Agent": USER_AGENT},
-                    timeout=90,
-                )
-                r.raise_for_status()
-                return r.json()["elements"]
-            except requests.RequestException as e:
-                last_error = e
-                print(f"note: {url.split('/')[2]} failed, trying next mirror",
-                      file=sys.stderr)
-                time.sleep(5)
+                timeout = (next_start - now if started < len(ENDPOINTS)
+                           else None)
+                url, elements, err = results.get(timeout=timeout)
+            except queue.Empty:
+                continue
+            pending -= 1
+            if err is None:
+                ENDPOINTS.remove(url)
+                ENDPOINTS.insert(0, url)
+                return elements
+            last_error = err
+            print(f"note: {url.split('/')[2]} failed", file=sys.stderr)
+            next_start = time.monotonic()  # a failure frees a hedge slot
     sys.exit(f"All Overpass mirrors failed ({last_error}). "
              "The servers are busy — try again in a minute or two.")
 
